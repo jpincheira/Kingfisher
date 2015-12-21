@@ -55,7 +55,7 @@ extension NSData {
         {
             return .GIF
         }
-        
+
         return .Unknown
     }
 }
@@ -65,7 +65,7 @@ extension UIImage {
     func kf_decodedImage() -> UIImage? {
         return self.kf_decodedImage(scale: self.scale)
     }
-    
+
     func kf_decodedImage(scale scale: CGFloat) -> UIImage? {
         // prevent animated image (GIF) lose it's images
         if images != nil {
@@ -95,16 +95,16 @@ extension UIImage {
         if images != nil {
             return self
         }
-        
+
         if imageOrientation == .Up {
             return self
         }
-        
+
         UIGraphicsBeginImageContextWithOptions(size, false, scale)
         drawInRect(CGRect(origin: CGPointZero, size: size))
         let normalizedImage = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
-        
+
         return normalizedImage
     }
 }
@@ -115,11 +115,33 @@ extension UIImage {
         var image: UIImage?
         switch data.kf_imageFormat {
         case .JPEG: image = UIImage(data: data, scale: scale)
-        case .PNG: image = UIImage(data: data, scale: scale)
+        case .PNG: image = UIImage(data: data, scale: scale)?.setPNGBackgroundColor(.whiteColor())
         case .GIF: image = UIImage.kf_animatedImageWithGIFData(gifData: data, scale: scale, duration: 0.0)
         case .Unknown: image = nil
         }
         return image
+    }
+
+    func setPNGBackgroundColor(backgroundColor: UIColor) -> UIImage {
+        var resultImage = UIImage()
+        var colorImage = UIImage()
+
+        // Make a UIImage filled with the background color
+        let rect = CGRectMake(0, 0, size.width, size.height)
+        UIGraphicsBeginImageContextWithOptions(size, false, 0)
+        backgroundColor.setFill()
+        UIRectFill(rect)
+        colorImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+
+        // Mix up the two images
+        UIGraphicsBeginImageContext(size)
+        colorImage.drawInRect(CGRectMake(0, 0, size.width, size.height))
+        self.drawInRect(CGRectMake(0, 0, size.width, size.height))
+        resultImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+
+        return resultImage
     }
 }
 
@@ -135,21 +157,21 @@ func UIImageGIFRepresentation(image: UIImage, duration: NSTimeInterval, repeatCo
 
     let frameCount = images.count
     let gifDuration = duration <= 0.0 ? image.duration / Double(frameCount) : duration / Double(frameCount)
-    
+
     let frameProperties = [kCGImagePropertyGIFDictionary as String: [kCGImagePropertyGIFDelayTime as String: gifDuration]]
     let imageProperties = [kCGImagePropertyGIFDictionary as String: [kCGImagePropertyGIFLoopCount as String: repeatCount]]
-    
+
     let data = NSMutableData()
-    
+
     guard let destination = CGImageDestinationCreateWithData(data, kUTTypeGIF, frameCount, nil) else {
         return nil
     }
     CGImageDestinationSetProperties(destination, imageProperties)
-    
+
     for image in images {
         CGImageDestinationAddImage(destination, image.CGImage!, frameProperties)
     }
-    
+
     return CGImageDestinationFinalize(destination) ? NSData(data: data) : nil
 }
 
@@ -157,35 +179,35 @@ extension UIImage {
     static func kf_animatedImageWithGIFData(gifData data: NSData) -> UIImage? {
         return kf_animatedImageWithGIFData(gifData: data, scale: UIScreen.mainScreen().scale, duration: 0.0)
     }
-    
+
     static func kf_animatedImageWithGIFData(gifData data: NSData, scale: CGFloat, duration: NSTimeInterval) -> UIImage? {
-        
+
         let options: NSDictionary = [kCGImageSourceShouldCache as String: NSNumber(bool: true), kCGImageSourceTypeIdentifierHint as String: kUTTypeGIF]
         guard let imageSource = CGImageSourceCreateWithData(data, options) else {
             return nil
         }
-        
+
         let frameCount = CGImageSourceGetCount(imageSource)
         var images = [UIImage]()
-        
+
         var gifDuration = 0.0
-        
+
         for i in 0 ..< frameCount {
             guard let imageRef = CGImageSourceCreateImageAtIndex(imageSource, i, options) else {
                 return nil
             }
-            
+
             guard let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, i, nil),
-                         gifInfo = (properties as NSDictionary)[kCGImagePropertyGIFDictionary as String] as? NSDictionary,
-                   frameDuration = (gifInfo[kCGImagePropertyGIFDelayTime as String] as? NSNumber) else
+                gifInfo = (properties as NSDictionary)[kCGImagePropertyGIFDictionary as String] as? NSDictionary,
+                frameDuration = (gifInfo[kCGImagePropertyGIFDelayTime as String] as? NSNumber) else
             {
                 return nil
             }
-            
+
             gifDuration += frameDuration.doubleValue
             images.append(UIImage(CGImage: imageRef, scale: scale, orientation: .Up))
         }
-        
+
         if frameCount == 1 {
             return images.first
         } else {
